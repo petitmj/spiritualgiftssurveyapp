@@ -1,5 +1,12 @@
 import streamlit as st
 import pandas as pd
+from reportlab.lib.pagesizes import letter, A4
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+from reportlab.lib import colors
+from datetime import datetime
+import io
 
 # Page configuration
 st.set_page_config(page_title="Spiritual Gifts Survey", page_icon="✨", layout="wide")
@@ -155,6 +162,94 @@ gift_definitions = {
     "Hospitality": "The divine enablement to care for people by providing fellowship, food, and shelter."
 }
 
+def generate_pdf_report():
+    """Generate PDF report of spiritual gifts results"""
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4)
+    styles = getSampleStyleSheet()
+    
+    # Custom styles
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=24,
+        spaceAfter=30,
+        alignment=1  # Center
+    )
+    
+    heading_style = ParagraphStyle(
+        'CustomHeading',
+        parent=styles['Heading2'],
+        fontSize=16,
+        spaceAfter=12,
+        textColor=colors.darkblue
+    )
+    
+    content = []
+    
+    # Title
+    content.append(Paragraph("Spiritual Gifts Survey Results", title_style))
+    content.append(Spacer(1, 20))
+    
+    # Date
+    content.append(Paragraph(f"Generated on: {datetime.now().strftime('%B %d, %Y')}", styles['Normal']))
+    content.append(Spacer(1, 20))
+    
+    # Calculate scores
+    scores = calculate_scores()
+    sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+    
+    # Top 3 gifts
+    content.append(Paragraph("Your Top 3 Spiritual Gifts", heading_style))
+    content.append(Spacer(1, 12))
+    
+    for idx, (gift, score) in enumerate(sorted_scores[:3]):
+        content.append(Paragraph(f"<b>{idx + 1}. {gift}</b> - Score: {score}/25", styles['Normal']))
+        content.append(Paragraph(gift_definitions[gift], styles['Normal']))
+        content.append(Spacer(1, 12))
+    
+    content.append(PageBreak())
+    
+    # All scores table
+    content.append(Paragraph("Complete Gift Scores", heading_style))
+    content.append(Spacer(1, 12))
+    
+    # Create table data
+    table_data = [['Spiritual Gift', 'Score', 'Percentage']]
+    for gift, score in sorted_scores:
+        percentage = (score / 25 * 100)
+        table_data.append([gift, f"{score}/25", f"{percentage:.1f}%"])
+    
+    # Create table
+    table = Table(table_data)
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 12),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black)
+    ]))
+    
+    content.append(table)
+    content.append(Spacer(1, 20))
+    
+    # Detailed descriptions
+    content.append(Paragraph("Gift Descriptions", heading_style))
+    content.append(Spacer(1, 12))
+    
+    for gift, score in sorted_scores:
+        content.append(Paragraph(f"<b>{gift} (Score: {score}/25)</b>", styles['Normal']))
+        content.append(Paragraph(gift_definitions[gift], styles['Normal']))
+        content.append(Spacer(1, 12))
+    
+    # Build PDF
+    doc.build(content)
+    buffer.seek(0)
+    return buffer
+
 def calculate_scores():
     """Calculate scores for each spiritual gift"""
     scores = {}
@@ -279,7 +374,7 @@ def results_page():
             st.write(gift_definitions[gift])
     
     # Action buttons
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     with col1:
         if st.button("← Retake Survey", use_container_width=True):
             st.session_state.responses = {}
@@ -290,6 +385,15 @@ def results_page():
             st.session_state.responses = {}
             st.session_state.page = 'intro'
             st.rerun()
+    with col3:
+        if st.button("📄 Download PDF", type="primary", use_container_width=True):
+            pdf_buffer = generate_pdf_report()
+            st.download_button(
+                label="Download Spiritual Gifts Results",
+                data=pdf_buffer,
+                file_name=f"spiritual_gifts_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                mime="application/pdf"
+            )
 
 # Main app logic
 def main():
