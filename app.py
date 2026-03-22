@@ -378,22 +378,30 @@ def results_page():
     with col1:
         if st.button("← Retake Survey", width='stretch'):
             st.session_state.responses = {}
+            if 'pdf_buffer' in st.session_state:
+                del st.session_state.pdf_buffer
             st.session_state.page = 'survey'
             st.rerun()
     with col2:
         if st.button("Start Over", width='stretch'):
             st.session_state.responses = {}
+            if 'pdf_buffer' in st.session_state:
+                del st.session_state.pdf_buffer
             st.session_state.page = 'intro'
             st.rerun()
     with col3:
-        if st.button("📄 Download PDF", type="primary", width='stretch'):
-            pdf_buffer = generate_pdf_report()
-            st.download_button(
-                label="Download Spiritual Gifts Results",
-                data=pdf_buffer,
-                file_name=f"spiritual_gifts_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
-                mime="application/pdf"
-            )
+        # Generate PDF once and store in session state
+        if 'pdf_buffer' not in st.session_state:
+            st.session_state.pdf_buffer = generate_pdf_report()
+        
+        st.download_button(
+            label="📄 Download PDF",
+            data=st.session_state.pdf_buffer,
+            file_name=f"spiritual_gifts_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+            mime="application/pdf",
+            type="primary",
+            width='stretch'
+        )
 
 # Main app logic
 def main():
