@@ -287,7 +287,7 @@ def intro_page():
     and practical experience in ministry.
     """)
     
-    if st.button("Begin Survey", type="primary", use_container_width=True):
+    if st.button("Begin Survey", type="primary", width='stretch'):
         st.session_state.page = 'survey'
         st.rerun()
 
@@ -324,16 +324,16 @@ def survey_page():
     # Navigation buttons
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("← Back to Introduction", use_container_width=True):
+        if st.button("← Back to Introduction", width='stretch'):
             st.session_state.page = 'intro'
             st.rerun()
     with col2:
         if answered == total_questions:
-            if st.button("View Results →", type="primary", use_container_width=True):
+            if st.button("View Results →", type="primary", width='stretch'):
                 st.session_state.page = 'results'
                 st.rerun()
         else:
-            st.button(f"Complete all questions ({total_questions - answered} remaining)", disabled=True, use_container_width=True)
+            st.button(f"Complete all questions ({total_questions - answered} remaining)", disabled=True, width='stretch')
 
 def results_page():
     """Display results"""
@@ -363,7 +363,7 @@ def results_page():
     st.bar_chart(df.set_index('Spiritual Gift')['Score'])
     
     # Display as table
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    st.dataframe(df, width='stretch', hide_index=True)
     
     st.divider()
     
@@ -376,17 +376,17 @@ def results_page():
     # Action buttons
     col1, col2, col3 = st.columns(3)
     with col1:
-        if st.button("← Retake Survey", use_container_width=True):
+        if st.button("← Retake Survey", width='stretch'):
             st.session_state.responses = {}
             st.session_state.page = 'survey'
             st.rerun()
     with col2:
-        if st.button("Start Over", use_container_width=True):
+        if st.button("Start Over", width='stretch'):
             st.session_state.responses = {}
             st.session_state.page = 'intro'
             st.rerun()
     with col3:
-        if st.button("📄 Download PDF", type="primary", use_container_width=True):
+        if st.button("📄 Download PDF", type="primary", width='stretch'):
             pdf_buffer = generate_pdf_report()
             st.download_button(
                 label="Download Spiritual Gifts Results",
@@ -400,14 +400,14 @@ def main():
     # Sidebar
     with st.sidebar:
         st.markdown("## Navigation")
-        if st.button("🏠 Introduction", use_container_width=True):
+        if st.button("🏠 Introduction", width='stretch'):
             st.session_state.page = 'intro'
             st.rerun()
-        if st.button("📝 Survey", use_container_width=True):
+        if st.button("📝 Survey", width='stretch'):
             st.session_state.page = 'survey'
             st.rerun()
         if len(st.session_state.responses) == len(questions):
-            if st.button("📊 Results", use_container_width=True):
+            if st.button("📊 Results", width='stretch'):
                 st.session_state.page = 'results'
                 st.rerun()
         
