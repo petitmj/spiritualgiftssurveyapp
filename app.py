@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import requests
 from reportlab.lib.pagesizes import letter, A4
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -16,6 +17,10 @@ if 'responses' not in st.session_state:
     st.session_state.responses = {}
 if 'page' not in st.session_state:
     st.session_state.page = 'intro'
+if 'user_name' not in st.session_state:
+    st.session_state.user_name = ""
+if 'submitted_to_server' not in st.session_state:
+    st.session_state.submitted_to_server = False
 
 # Survey questions
 questions = [
@@ -116,7 +121,7 @@ questions = [
     "When I speak in tongues, I believe it is edifying to the group I am with."
 ]
 
-# Gift mappings (question numbers are 1-indexed in original, but 0-indexed in our list)
+# Gift mappings
 gift_mappings = {
     "Leadership": [6, 16, 27, 43, 65],
     "Administration": [1, 17, 31, 47, 59],
@@ -162,18 +167,36 @@ gift_definitions = {
     "Hospitality": "The divine enablement to care for people by providing fellowship, food, and shelter."
 }
 
-def generate_pdf_report():
+def send_results_to_server(name, scores, responses):
+    """Send survey results to a remote server via HTTP POST"""
+    server_url = "https://your-server-endpoint.com/api/survey-results"  # Replace with your actual server endpoint
+    payload = {
+        "name": name,
+        "timestamp": datetime.now().isoformat(),
+        "scores": scores,
+        "responses": responses
+    }
+    try:
+        response = requests.post(server_url, json=payload, timeout=5)
+        if response.status_code in [200, 201]:
+            return True
+        return False
+    except Exception as e:
+        # Log error if server is unreachable
+        print(f"Server submission error: {e}")
+        return False
+
+def generate_pdf_report(user_name):
     """Generate PDF report of spiritual gifts results"""
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4)
     styles = getSampleStyleSheet()
     
-    # Custom styles
     title_style = ParagraphStyle(
         'CustomTitle',
         parent=styles['Heading1'],
         fontSize=24,
-        spaceAfter=30,
+        spaceAfter=15,
         alignment=1  # Center
     )
     
@@ -187,12 +210,11 @@ def generate_pdf_report():
     
     content = []
     
-    # Title
+    # Title & Participant Name
     content.append(Paragraph("Spiritual Gifts Survey Results", title_style))
-    content.append(Spacer(1, 20))
-    
-    # Date
-    content.append(Paragraph(f"Generated on: {datetime.now().strftime('%B %d, %Y')}", styles['Normal']))
+    content.append(Paragraph(f"<b>Participant:</b> {user_name}", styles['Normal']))
+    content.append(Spacer(1, 10))
+    content.append(Paragraph(f"<b>Generated on:</b> {datetime.now().strftime('%B %d, %Y')}", styles['Normal']))
     content.append(Spacer(1, 20))
     
     # Calculate scores
@@ -214,13 +236,11 @@ def generate_pdf_report():
     content.append(Paragraph("Complete Gift Scores", heading_style))
     content.append(Spacer(1, 12))
     
-    # Create table data
     table_data = [['Spiritual Gift', 'Score', 'Percentage']]
     for gift, score in sorted_scores:
         percentage = (score / 25 * 100)
         table_data.append([gift, f"{score}/25", f"{percentage:.1f}%"])
     
-    # Create table
     table = Table(table_data)
     table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
@@ -245,7 +265,6 @@ def generate_pdf_report():
         content.append(Paragraph(gift_definitions[gift], styles['Normal']))
         content.append(Spacer(1, 12))
     
-    # Build PDF
     doc.build(content)
     buffer.seek(0)
     return buffer
@@ -254,7 +273,6 @@ def calculate_scores():
     """Calculate scores for each spiritual gift"""
     scores = {}
     for gift, items in gift_mappings.items():
-        # Convert 1-indexed to 0-indexed
         score = sum([st.session_state.responses.get(i, 0) for i in items])
         scores[gift] = score
     return scores
@@ -281,28 +299,30 @@ def intro_page():
     - **3** - Frequently characteristic of me/true for me (about 50%)
     - **2** - Occasionally characteristic of me/true for me (about 25%)
     - **1** - Not at all characteristic of me/definitely untrue for me
-    
-    Remember: This tool is meant as a starting point to discover how God has gifted you, 
-    not as an absolute indicator. It should be used alongside prayer, community feedback, 
-    and practical experience in ministry.
     """)
     
-    if st.button("Begin Survey", type="primary", width='stretch'):
-        st.session_state.page = 'survey'
-        st.rerun()
+    st.divider()
+    st.markdown("### Enter Your Name to Begin")
+    name_input = st.text_input("Your Full Name", value=st.session_state.user_name, placeholder="Enter your name here...")
+    
+    if st.button("Begin Survey", type="primary", use_container_width=True):
+        if not name_input.strip():
+            st.error("Please enter your name before beginning the survey.")
+        else:
+            st.session_state.user_name = name_input.strip()
+            st.session_state.page = 'survey'
+            st.rerun()
 
 def survey_page():
     """Display survey questions"""
-    st.title("Spiritual Gifts Survey")
+    st.title(f"Spiritual Gifts Survey — {st.session_state.user_name}")
     
-    # Progress bar
     total_questions = len(questions)
     answered = len([r for r in st.session_state.responses.values() if r > 0])
     progress = answered / total_questions
     st.progress(progress)
     st.write(f"Progress: {answered}/{total_questions} questions answered")
     
-    # Display questions in groups of 10
     st.markdown("### Rate each statement from 1 (Not at all characteristic) to 5 (Highly characteristic)")
     
     for i, question in enumerate(questions, 1):
@@ -321,28 +341,36 @@ def survey_page():
         if i % 10 == 0:
             st.divider()
     
-    # Navigation buttons
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("← Back to Introduction", width='stretch'):
+        if st.button("← Back to Introduction", use_container_width=True):
             st.session_state.page = 'intro'
             st.rerun()
     with col2:
         if answered == total_questions:
-            if st.button("View Results →", type="primary", width='stretch'):
+            if st.button("View Results →", type="primary", use_container_width=True):
                 st.session_state.page = 'results'
                 st.rerun()
         else:
-            st.button(f"Complete all questions ({total_questions - answered} remaining)", disabled=True, width='stretch')
+            st.button(f"Complete all questions ({total_questions - answered} remaining)", disabled=True, use_container_width=True)
 
 def results_page():
-    """Display results"""
-    st.title("📊 Your Spiritual Gifts Results")
+    """Display results and send to server"""
+    st.title(f"📊 Results for {st.session_state.user_name}")
     
     scores = calculate_scores()
+    
+    # Send results to server once when visiting results page
+    if not st.session_state.submitted_to_server:
+        success = send_results_to_server(st.session_state.user_name, scores, st.session_state.responses)
+        if success:
+            st.success("Your results have been successfully saved to the server!")
+        else:
+            st.info("Results calculated successfully. (Server sync offline or pending configuration)")
+        st.session_state.submitted_to_server = True
+
     sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
     
-    # Top 3 gifts
     st.markdown("### Your Top 3 Spiritual Gifts")
     cols = st.columns(3)
     for idx, (gift, score) in enumerate(sorted_scores[:3]):
@@ -352,84 +380,79 @@ def results_page():
     
     st.divider()
     
-    # All scores
     st.markdown("### All Gift Scores")
-    
-    # Create DataFrame for better display
     df = pd.DataFrame(sorted_scores, columns=['Spiritual Gift', 'Score'])
     df['Percentage'] = (df['Score'] / 25 * 100).round(1)
     
-    # Display as chart
     st.bar_chart(df.set_index('Spiritual Gift')['Score'])
-    
-    # Display as table
-    st.dataframe(df, width='stretch', hide_index=True)
+    st.dataframe(df, use_container_width=True, hide_index=True)
     
     st.divider()
     
-    # Detailed descriptions
     st.markdown("### Gift Descriptions")
     for gift, score in sorted_scores:
         with st.expander(f"{gift} (Score: {score}/25)"):
             st.write(gift_definitions[gift])
     
-    # Action buttons
     col1, col2, col3 = st.columns(3)
     with col1:
-        if st.button("← Retake Survey", width='stretch'):
+        if st.button("← Retake Survey", use_container_width=True):
             st.session_state.responses = {}
+            st.session_state.submitted_to_server = False
             if 'pdf_buffer' in st.session_state:
                 del st.session_state.pdf_buffer
             st.session_state.page = 'survey'
             st.rerun()
     with col2:
-        if st.button("Start Over", width='stretch'):
+        if st.button("Start Over", use_container_width=True):
             st.session_state.responses = {}
+            st.session_state.user_name = ""
+            st.session_state.submitted_to_server = False
             if 'pdf_buffer' in st.session_state:
                 del st.session_state.pdf_buffer
             st.session_state.page = 'intro'
             st.rerun()
     with col3:
-        # Generate PDF once and store in session state
         if 'pdf_buffer' not in st.session_state:
-            st.session_state.pdf_buffer = generate_pdf_report()
+            st.session_state.pdf_buffer = generate_pdf_report(st.session_state.user_name)
         
         st.download_button(
             label="📄 Download PDF",
             data=st.session_state.pdf_buffer,
-            file_name=f"spiritual_gifts_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+            file_name=f"spiritual_gifts_{st.session_state.user_name.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
             mime="application/pdf",
             type="primary",
-            width='stretch'
+            use_container_width=True
         )
 
-# Main app logic
 def main():
-    # Sidebar
     with st.sidebar:
         st.markdown("## Navigation")
-        if st.button("🏠 Introduction", width='stretch'):
+        if st.button("🏠 Introduction", use_container_width=True):
             st.session_state.page = 'intro'
             st.rerun()
-        if st.button("📝 Survey", width='stretch'):
-            st.session_state.page = 'survey'
-            st.rerun()
+        if st.button("📝 Survey", use_container_width=True):
+            if st.session_state.user_name:
+                st.session_state.page = 'survey'
+                st.rerun()
+            else:
+                st.warning("Please enter your name on the introduction page first.")
         if len(st.session_state.responses) == len(questions):
-            if st.button("📊 Results", width='stretch'):
+            if st.button("📊 Results", use_container_width=True):
                 st.session_state.page = 'results'
                 st.rerun()
         
         st.divider()
+        if st.session_state.user_name:
+            st.markdown(f"**Current User:** {st.session_state.user_name}")
+            st.divider()
+            
         st.markdown("""
         ### About
         This survey helps identify your spiritual gifts based on biblical teaching 
         from 1 Corinthians 12-14, Romans 12, and Ephesians 4.
-        
-        Remember: Every Christian has at least one spiritual gift, and gifts 
-        are meant to build up the body of Christ.
         """)
     
-    # Display appropriate page
     if st.session_state.page == 'intro':
         intro_page()
     elif st.session_state.page == 'survey':
