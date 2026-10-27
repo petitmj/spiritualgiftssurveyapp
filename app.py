@@ -285,7 +285,7 @@ def calculate_scores():
 
 def intro_page():
     """Display introduction page"""
-    st.title("✨ Spiritual Gifts Survey")
+    st.title("🕊️ Spiritual Gifts Survey")
     
     st.markdown("""
     ### Welcome!
