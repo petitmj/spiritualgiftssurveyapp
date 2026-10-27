@@ -12,15 +12,22 @@ import io
 # Page configuration
 st.set_page_config(page_title="Spiritual Gifts Survey", page_icon="✨", layout="wide")
 
-# Retrieve Supabase URL and Key securely (handles both flat and nested secret structures)
-raw_url = st.secrets["SUPABASE_URL"]
-raw_key = st.secrets["SUPABASE_KEY"]
+# Robust secret extraction helper to prevent AttrDict TypeErrors
+def get_secret(key):
+    if key not in st.secrets:
+        return ""
+    val = st.secrets[key]
+    if isinstance(val, dict) or hasattr(val, "keys"):
+        # Extracts the inner value if a bracket header was used in secrets.toml
+        for k in val.keys():
+            return str(val[k])
+    return str(val)
 
-SUPABASE_URL = raw_url["SUPABASE_URL"] if isinstance(raw_url, dict) or hasattr(raw_url, "keys") else raw_url
-SUPABASE_KEY = raw_key["SUPABASE_KEY"] if isinstance(raw_key, dict) or hasattr(raw_key, "keys") else raw_key
+SUPABASE_URL = get_secret("SUPABASE_URL")
+SUPABASE_KEY = get_secret("SUPABASE_KEY")
 
-# Initialize Supabase client
-supabase = create_client(str(SUPABASE_URL), str(SUPABASE_KEY))
+# Initialize Supabase client safely
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # Initialize session state
 if 'responses' not in st.session_state:
