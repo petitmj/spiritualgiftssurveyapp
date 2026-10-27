@@ -10,7 +10,7 @@ from datetime import datetime
 import io
 
 # Page configuration
-st.set_page_config(page_title="Spiritual Gifts Survey", page_icon="✨", layout="wide")
+st.set_page_config(page_title="Spiritual Gifts Survey", page_icon="🕊️", layout="wide")
 
 # Robust secret extraction helper to prevent AttrDict TypeErrors
 def get_secret(key):
