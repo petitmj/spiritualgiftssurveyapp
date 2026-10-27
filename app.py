@@ -369,7 +369,7 @@ def results_page():
     if not st.session_state.submitted_to_server:
         success, error_msg = send_results_to_server(st.session_state.user_name, scores, st.session_state.responses)
         if success:
-            st.success("Your results have been successfully saved to Supabase!")
+            st.success("Your results have been successfully submitted to the Watchtower!")
         else:
             st.error(f"Failed to save to Supabase: {error_msg}")
         st.session_state.submitted_to_server = True
