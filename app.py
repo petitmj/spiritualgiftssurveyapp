@@ -18,7 +18,6 @@ def get_secret(key):
         return ""
     val = st.secrets[key]
     if isinstance(val, dict) or hasattr(val, "keys"):
-        # Extracts the inner value if a bracket header was used in secrets.toml
         for k in val.keys():
             return str(val[k])
     return str(val)
@@ -310,9 +309,9 @@ def intro_page():
     
     st.divider()
     st.markdown("### Enter Your Name to Begin")
-    name_input = st.text_input("Your Full Name", value=st.session_state.user_name, placeholder="Enter your name here...")
+    name_input = st.text_input("Your Full Name", value=st.session_state.user_name, placeholder="Enter your name here...", key="intro_name_input")
     
-    if st.button("Begin Survey", type="primary", width="stretch"):
+    if st.button("Begin Survey", type="primary", width="stretch", key="intro_begin_btn"):
         if not name_input.strip():
             st.error("Please enter your name before beginning the survey.")
         else:
@@ -353,11 +352,11 @@ def survey_page():
     
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("← Back to Introduction", width="stretch"):
+        if st.button("← Back to Introduction", width="stretch", key="survey_back_btn"):
             st.session_state.page = 'intro'
             st.rerun()
     with col2:
-        if st.button("View Results →", type="primary", width="stretch"):
+        if st.button("View Results →", type="primary", width="stretch", key="survey_results_btn"):
             st.session_state.page = 'results'
             st.rerun()
 
@@ -402,7 +401,7 @@ def results_page():
     
     col1, col2, col3 = st.columns(3)
     with col1:
-        if st.button("← Retake Survey", width="stretch"):
+        if st.button("← Retake Survey", width="stretch", key="results_retake_btn"):
             st.session_state.responses = {i: 3 for i in range(1, len(questions) + 1)}
             st.session_state.submitted_to_server = False
             if 'pdf_buffer' in st.session_state:
@@ -410,7 +409,7 @@ def results_page():
             st.session_state.page = 'survey'
             st.rerun()
     with col2:
-        if st.button("Start Over", width="stretch"):
+        if st.button("Start Over", width="stretch", key="results_start_over_btn"):
             st.session_state.responses = {}
             st.session_state.user_name = ""
             st.session_state.submitted_to_server = False
@@ -428,16 +427,17 @@ def results_page():
             file_name=f"spiritual_gifts_{st.session_state.user_name.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
             mime="application/pdf",
             type="primary",
-            width="stretch"
+            width="stretch",
+            key="results_download_pdf"
         )
 
 def main():
     with st.sidebar:
         st.markdown("## Navigation")
-        if st.button("🏠 Introduction", width="stretch"):
+        if st.button("🏠 Introduction", width="stretch", key="nav_intro_btn"):
             st.session_state.page = 'intro'
             st.rerun()
-        if st.button("📝 Survey", width="stretch"):
+        if st.button("📝 Survey", width="stretch", key="nav_survey_btn"):
             if st.session_state.user_name:
                 for i in range(1, len(questions) + 1):
                     if i not in st.session_state.responses:
@@ -447,7 +447,7 @@ def main():
             else:
                 st.warning("Please enter your name on the introduction page first.")
         if len(st.session_state.responses) == len(questions):
-            if st.button("📊 Results", width="stretch"):
+            if st.button("📊 Results", width="stretch", key="nav_results_btn"):
                 st.session_state.page = 'results'
                 st.rerun()
         
@@ -468,9 +468,6 @@ def main():
         survey_page()
     elif st.session_state.page == 'results':
         results_page()
-
-if __name__ == "__main__":
-    main()
 
 if __name__ == "__main__":
     main()
