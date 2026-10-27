@@ -10,7 +10,7 @@ from datetime import datetime
 import io
 
 # Page configuration
-st.set_page_config(page_title="Spiritual Gifts Survey", page_icon="🕊️", layout="wide")
+st.set_page_config(page_title="Spiritual Gifts Survey", page_icon="✨", layout="wide")
 
 # Initialize Supabase client using Streamlit secrets
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
@@ -20,6 +20,8 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 # Initialize session state
 if 'responses' not in st.session_state:
     st.session_state.responses = {}
+if 'touched_questions' not in st.session_state:
+    st.session_state.touched_questions = set()
 if 'page' not in st.session_state:
     st.session_state.page = 'intro'
 if 'user_name' not in st.session_state:
@@ -274,9 +276,13 @@ def calculate_scores():
     """Calculate scores for each spiritual gift"""
     scores = {}
     for gift, items in gift_mappings.items():
-        score = sum([st.session_state.responses.get(i, 0) for i in items])
+        score = sum([st.session_state.responses.get(i, 3) for i in items])
         scores[gift] = score
     return scores
+
+def mark_question_touched(q_num):
+    """Callback function to track actively answered questions"""
+    st.session_state.touched_questions.add(q_num)
 
 def intro_page():
     """Display introduction page"""
@@ -319,7 +325,7 @@ def survey_page():
     st.title(f"Spiritual Gifts Survey — {st.session_state.user_name}")
     
     total_questions = len(questions)
-    answered = len([r for r in st.session_state.responses.values() if r > 0])
+    answered = len(st.session_state.touched_questions)
     progress = answered / total_questions
     st.progress(progress)
     st.write(f"Progress: {answered}/{total_questions} questions answered")
@@ -331,12 +337,15 @@ def survey_page():
         with col1:
             st.write(f"**{i}.** {question}")
         with col2:
+            # Use on_change callback to accurately track only interacted questions
             st.session_state.responses[i] = st.select_slider(
                 f"Q{i}",
                 options=[1, 2, 3, 4, 5],
                 value=st.session_state.responses.get(i, 3),
                 key=f"q_{i}",
-                label_visibility="collapsed"
+                label_visibility="collapsed",
+                on_change=mark_question_touched,
+                args=(i,)
             )
         
         if i % 10 == 0:
@@ -399,6 +408,7 @@ def results_page():
     with col1:
         if st.button("← Retake Survey", use_container_width=True):
             st.session_state.responses = {}
+            st.session_state.touched_questions = set()
             st.session_state.submitted_to_server = False
             if 'pdf_buffer' in st.session_state:
                 del st.session_state.pdf_buffer
@@ -407,6 +417,7 @@ def results_page():
     with col2:
         if st.button("Start Over", use_container_width=True):
             st.session_state.responses = {}
+            st.session_state.touched_questions = set()
             st.session_state.user_name = ""
             st.session_state.submitted_to_server = False
             if 'pdf_buffer' in st.session_state:
@@ -438,7 +449,7 @@ def main():
                 st.rerun()
             else:
                 st.warning("Please enter your name on the introduction page first.")
-        if len(st.session_state.responses) == len(questions):
+        if len(st.session_state.touched_questions) == len(questions):
             if st.button("📊 Results", use_container_width=True):
                 st.session_state.page = 'results'
                 st.rerun()
