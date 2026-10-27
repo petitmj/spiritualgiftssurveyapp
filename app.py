@@ -10,7 +10,7 @@ from datetime import datetime
 import io
 
 # Page configuration
-st.set_page_config(page_title="Spiritual Gifts Survey", page_icon="✨", layout="wide")
+st.set_page_config(page_title="Spiritual Gifts Survey", page_icon="🕊️", layout="wide")
 
 # Initialize Supabase client using Streamlit secrets
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
