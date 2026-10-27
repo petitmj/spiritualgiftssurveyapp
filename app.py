@@ -20,8 +20,6 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 # Initialize session state
 if 'responses' not in st.session_state:
     st.session_state.responses = {}
-if 'touched_questions' not in st.session_state:
-    st.session_state.touched_questions = set()
 if 'page' not in st.session_state:
     st.session_state.page = 'intro'
 if 'user_name' not in st.session_state:
@@ -213,18 +211,15 @@ def generate_pdf_report(user_name):
     
     content = []
     
-    # Title & Participant Name
     content.append(Paragraph("Spiritual Gifts Survey Results", title_style))
     content.append(Paragraph(f"<b>Participant:</b> {user_name}", styles['Normal']))
     content.append(Spacer(1, 10))
     content.append(Paragraph(f"<b>Generated on:</b> {datetime.now().strftime('%B %d, %Y')}", styles['Normal']))
     content.append(Spacer(1, 20))
     
-    # Calculate scores
     scores = calculate_scores()
     sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
     
-    # Top 3 gifts
     content.append(Paragraph("Your Top 3 Spiritual Gifts", heading_style))
     content.append(Spacer(1, 12))
     
@@ -235,7 +230,6 @@ def generate_pdf_report(user_name):
     
     content.append(PageBreak())
     
-    # All scores table
     content.append(Paragraph("Complete Gift Scores", heading_style))
     content.append(Spacer(1, 12))
     
@@ -259,7 +253,6 @@ def generate_pdf_report(user_name):
     content.append(table)
     content.append(Spacer(1, 20))
     
-    # Detailed descriptions
     content.append(Paragraph("Gift Descriptions", heading_style))
     content.append(Spacer(1, 12))
     
@@ -279,10 +272,6 @@ def calculate_scores():
         score = sum([st.session_state.responses.get(i, 3) for i in items])
         scores[gift] = score
     return scores
-
-def mark_question_touched(q_num):
-    """Callback function to track actively answered questions"""
-    st.session_state.touched_questions.add(q_num)
 
 def intro_page():
     """Display introduction page"""
@@ -317,6 +306,10 @@ def intro_page():
             st.error("Please enter your name before beginning the survey.")
         else:
             st.session_state.user_name = name_input.strip()
+            # Pre-initialize all 95 questions to default value 3 when entering the survey
+            for i in range(1, len(questions) + 1):
+                if i not in st.session_state.responses:
+                    st.session_state.responses[i] = 3
             st.session_state.page = 'survey'
             st.rerun()
 
@@ -325,27 +318,26 @@ def survey_page():
     st.title(f"Spiritual Gifts Survey — {st.session_state.user_name}")
     
     total_questions = len(questions)
-    answered = len(st.session_state.touched_questions)
-    progress = answered / total_questions
-    st.progress(progress)
-    st.write(f"Progress: {answered}/{total_questions} questions answered")
     
+    # Ensure all questions have a default value of 3 if coming from sidebar or refresh
+    for i in range(1, total_questions + 1):
+        if i not in st.session_state.responses:
+            st.session_state.responses[i] = 3
+
     st.markdown("### Rate each statement from 1 (Not at all characteristic) to 5 (Highly characteristic)")
+    st.info("💡 All statements are defaulted to 3 (Frequently characteristic). Adjust any sliders that apply differently to you!")
     
     for i, question in enumerate(questions, 1):
         col1, col2 = st.columns([3, 1])
         with col1:
-            st.write(f"**{i}.** {question}")
+            st.write(f"<b>{i}.</b> {question}", unsafe_allow_html=True)
         with col2:
-            # Use on_change callback to accurately track only interacted questions
             st.session_state.responses[i] = st.select_slider(
                 f"Q{i}",
                 options=[1, 2, 3, 4, 5],
                 value=st.session_state.responses.get(i, 3),
                 key=f"q_{i}",
-                label_visibility="collapsed",
-                on_change=mark_question_touched,
-                args=(i,)
+                label_visibility="collapsed"
             )
         
         if i % 10 == 0:
@@ -357,12 +349,9 @@ def survey_page():
             st.session_state.page = 'intro'
             st.rerun()
     with col2:
-        if answered == total_questions:
-            if st.button("View Results →", type="primary", use_container_width=True):
-                st.session_state.page = 'results'
-                st.rerun()
-        else:
-            st.button(f"Complete all questions ({total_questions - answered} remaining)", disabled=True, use_container_width=True)
+        if st.button("View Results →", type="primary", use_container_width=True):
+            st.session_state.page = 'results'
+            st.rerun()
 
 def results_page():
     """Display results and send to Supabase"""
@@ -407,8 +396,7 @@ def results_page():
     col1, col2, col3 = st.columns(3)
     with col1:
         if st.button("← Retake Survey", use_container_width=True):
-            st.session_state.responses = {}
-            st.session_state.touched_questions = set()
+            st.session_state.responses = {i: 3 for i in range(1, len(questions) + 1)}
             st.session_state.submitted_to_server = False
             if 'pdf_buffer' in st.session_state:
                 del st.session_state.pdf_buffer
@@ -417,7 +405,6 @@ def results_page():
     with col2:
         if st.button("Start Over", use_container_width=True):
             st.session_state.responses = {}
-            st.session_state.touched_questions = set()
             st.session_state.user_name = ""
             st.session_state.submitted_to_server = False
             if 'pdf_buffer' in st.session_state:
@@ -445,11 +432,14 @@ def main():
             st.rerun()
         if st.button("📝 Survey", use_container_width=True):
             if st.session_state.user_name:
+                for i in range(1, len(questions) + 1):
+                    if i not in st.session_state.responses:
+                        st.session_state.responses[i] = 3
                 st.session_state.page = 'survey'
                 st.rerun()
             else:
                 st.warning("Please enter your name on the introduction page first.")
-        if len(st.session_state.touched_questions) == len(questions):
+        if len(st.session_state.responses) == len(questions):
             if st.button("📊 Results", use_container_width=True):
                 st.session_state.page = 'results'
                 st.rerun()
