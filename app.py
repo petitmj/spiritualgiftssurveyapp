@@ -12,10 +12,15 @@ import io
 # Page configuration
 st.set_page_config(page_title="Spiritual Gifts Survey", page_icon="✨", layout="wide")
 
-# Initialize Supabase client using Streamlit secrets
-SUPABASE_URL = st.secrets["SUPABASE_URL"]
-SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+# Retrieve Supabase URL and Key securely (handles both flat and nested secret structures)
+raw_url = st.secrets["SUPABASE_URL"]
+raw_key = st.secrets["SUPABASE_KEY"]
+
+SUPABASE_URL = raw_url["SUPABASE_URL"] if isinstance(raw_url, dict) or hasattr(raw_url, "keys") else raw_url
+SUPABASE_KEY = raw_key["SUPABASE_KEY"] if isinstance(raw_key, dict) or hasattr(raw_key, "keys") else raw_key
+
+# Initialize Supabase client
+supabase = create_client(str(SUPABASE_URL), str(SUPABASE_KEY))
 
 # Initialize session state
 if 'responses' not in st.session_state:
@@ -182,10 +187,9 @@ def send_results_to_server(name, scores, responses):
             "responses": responses
         }
         supabase.table("survey_results").insert(data).execute()
-        return True
+        return True, None
     except Exception as e:
-        print(f"Database error: {e}")
-        return False
+        return False, str(e)
 
 def generate_pdf_report(user_name):
     """Generate PDF report of spiritual gifts results"""
@@ -301,12 +305,11 @@ def intro_page():
     st.markdown("### Enter Your Name to Begin")
     name_input = st.text_input("Your Full Name", value=st.session_state.user_name, placeholder="Enter your name here...")
     
-    if st.button("Begin Survey", type="primary", use_container_width=True):
+    if st.button("Begin Survey", type="primary", width="stretch"):
         if not name_input.strip():
             st.error("Please enter your name before beginning the survey.")
         else:
             st.session_state.user_name = name_input.strip()
-            # Pre-initialize all 95 questions to default value 3 when entering the survey
             for i in range(1, len(questions) + 1):
                 if i not in st.session_state.responses:
                     st.session_state.responses[i] = 3
@@ -318,8 +321,6 @@ def survey_page():
     st.title(f"Spiritual Gifts Survey — {st.session_state.user_name}")
     
     total_questions = len(questions)
-    
-    # Ensure all questions have a default value of 3 if coming from sidebar or refresh
     for i in range(1, total_questions + 1):
         if i not in st.session_state.responses:
             st.session_state.responses[i] = 3
@@ -345,11 +346,11 @@ def survey_page():
     
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("← Back to Introduction", use_container_width=True):
+        if st.button("← Back to Introduction", width="stretch"):
             st.session_state.page = 'intro'
             st.rerun()
     with col2:
-        if st.button("View Results →", type="primary", use_container_width=True):
+        if st.button("View Results →", type="primary", width="stretch"):
             st.session_state.page = 'results'
             st.rerun()
 
@@ -359,13 +360,12 @@ def results_page():
     
     scores = calculate_scores()
     
-    # Send results to Supabase database once when visiting results page
     if not st.session_state.submitted_to_server:
-        success = send_results_to_server(st.session_state.user_name, scores, st.session_state.responses)
+        success, error_msg = send_results_to_server(st.session_state.user_name, scores, st.session_state.responses)
         if success:
             st.success("Your results have been successfully saved to Supabase!")
         else:
-            st.warning("Results calculated successfully, but failed to save to the database. Check your credentials.")
+            st.error(f"Failed to save to Supabase: {error_msg}")
         st.session_state.submitted_to_server = True
 
     sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
@@ -384,7 +384,7 @@ def results_page():
     df['Percentage'] = (df['Score'] / 25 * 100).round(1)
     
     st.bar_chart(df.set_index('Spiritual Gift')['Score'])
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    st.dataframe(df, width="stretch", hide_index=True)
     
     st.divider()
     
@@ -395,7 +395,7 @@ def results_page():
     
     col1, col2, col3 = st.columns(3)
     with col1:
-        if st.button("← Retake Survey", use_container_width=True):
+        if st.button("← Retake Survey", width="stretch"):
             st.session_state.responses = {i: 3 for i in range(1, len(questions) + 1)}
             st.session_state.submitted_to_server = False
             if 'pdf_buffer' in st.session_state:
@@ -403,7 +403,7 @@ def results_page():
             st.session_state.page = 'survey'
             st.rerun()
     with col2:
-        if st.button("Start Over", use_container_width=True):
+        if st.button("Start Over", width="stretch"):
             st.session_state.responses = {}
             st.session_state.user_name = ""
             st.session_state.submitted_to_server = False
@@ -421,16 +421,16 @@ def results_page():
             file_name=f"spiritual_gifts_{st.session_state.user_name.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
             mime="application/pdf",
             type="primary",
-            use_container_width=True
+            width="stretch"
         )
 
 def main():
     with st.sidebar:
         st.markdown("## Navigation")
-        if st.button("🏠 Introduction", use_container_width=True):
+        if st.button("🏠 Introduction", width="stretch"):
             st.session_state.page = 'intro'
             st.rerun()
-        if st.button("📝 Survey", use_container_width=True):
+        if st.button("📝 Survey", width="stretch"):
             if st.session_state.user_name:
                 for i in range(1, len(questions) + 1):
                     if i not in st.session_state.responses:
@@ -440,7 +440,7 @@ def main():
             else:
                 st.warning("Please enter your name on the introduction page first.")
         if len(st.session_state.responses) == len(questions):
-            if st.button("📊 Results", use_container_width=True):
+            if st.button("📊 Results", width="stretch"):
                 st.session_state.page = 'results'
                 st.rerun()
         
