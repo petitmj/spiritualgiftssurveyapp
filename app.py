@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-import requests
+from supabase import create_client
 from reportlab.lib.pagesizes import letter, A4
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -11,6 +11,11 @@ import io
 
 # Page configuration
 st.set_page_config(page_title="Spiritual Gifts Survey", page_icon="✨", layout="wide")
+
+# Initialize Supabase client using Streamlit secrets
+SUPABASE_URL = st.secrets["SUPABASE_URL"]
+SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # Initialize session state
 if 'responses' not in st.session_state:
@@ -168,22 +173,18 @@ gift_definitions = {
 }
 
 def send_results_to_server(name, scores, responses):
-    """Send survey results to a remote server via HTTP POST"""
-    server_url = "https://your-server-endpoint.com/api/survey-results"  # Replace with your actual server endpoint
-    payload = {
-        "name": name,
-        "timestamp": datetime.now().isoformat(),
-        "scores": scores,
-        "responses": responses
-    }
+    """Save survey results directly to Supabase database"""
     try:
-        response = requests.post(server_url, json=payload, timeout=5)
-        if response.status_code in [200, 201]:
-            return True
-        return False
+        data = {
+            "name": name,
+            "timestamp": datetime.now().isoformat(),
+            "scores": scores,
+            "responses": responses
+        }
+        supabase.table("survey_results").insert(data).execute()
+        return True
     except Exception as e:
-        # Log error if server is unreachable
-        print(f"Server submission error: {e}")
+        print(f"Database error: {e}")
         return False
 
 def generate_pdf_report(user_name):
@@ -355,18 +356,18 @@ def survey_page():
             st.button(f"Complete all questions ({total_questions - answered} remaining)", disabled=True, use_container_width=True)
 
 def results_page():
-    """Display results and send to server"""
+    """Display results and send to Supabase"""
     st.title(f"📊 Results for {st.session_state.user_name}")
     
     scores = calculate_scores()
     
-    # Send results to server once when visiting results page
+    # Send results to Supabase database once when visiting results page
     if not st.session_state.submitted_to_server:
         success = send_results_to_server(st.session_state.user_name, scores, st.session_state.responses)
         if success:
-            st.success("Your results have been successfully saved to the server!")
+            st.success("Your results have been successfully saved to Supabase!")
         else:
-            st.info("Results calculated successfully. (Server sync offline or pending configuration)")
+            st.warning("Results calculated successfully, but failed to save to the database. Check your credentials.")
         st.session_state.submitted_to_server = True
 
     sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
